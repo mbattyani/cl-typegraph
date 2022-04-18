@@ -18,7 +18,7 @@
 (defvar *graph-id-counter* 0)
 
 (defun make-graph-node-id ()
-  (format nil "N~d." (incf *graph-id-counter*)))
+  (format nil "N~d" (incf *graph-id-counter*)))
 
 (defun make-graph-file-id ()
   (format nil "F~d" (incf *graph-id-counter*)))
@@ -105,22 +105,23 @@
 	(write-line value s)))
 
 (defmethod gen-graph-dot-data ((graph graph) s)
-  (format s "digraph G {
+  (let ((*print-readably* nil))
+    (format s "digraph G {
 size=\"~a,~a\";
 edge [fontname=~a,fontsize=~a];
 "
-	  (/ (max-dx graph) 72.0)(/ (max-dy graph) 72.0)
-	  (pdf:name *edge-label-font*) *edge-label-font-size*)
-  (loop for (rank-constraint . nodes) in (rank-constraints graph) do
-	(format s "{rank = ~a; ~{~s;~^ ~}};~%" rank-constraint (mapcar 'id nodes)))
-  (format s "graph [")
-  (gen-dot-attributes s (dot-attributes graph))
-  (format s "];")
-  (iter (for (id node) in-hashtable (nodes graph))
-	(gen-graph-dot-data node s))
-  (iter (for (id edge) in-hashtable (edges graph))
-	(gen-graph-dot-data edge s))
-  (format s "}~%"))
+	    (/ (max-dx graph) 72.0)(/ (max-dy graph) 72.0)
+	    (pdf:name *edge-label-font*) *edge-label-font-size*)
+    (loop for (rank-constraint . nodes) in (rank-constraints graph) do
+      (format s "{rank = ~a; ~{~s;~^ ~}};~%" rank-constraint (mapcar 'id nodes)))
+    (format s "graph [")
+    (gen-dot-attributes s (dot-attributes graph))
+    (format s "];")
+    (iter (for (id node) in-hashtable (nodes graph))
+      (gen-graph-dot-data node s))
+    (iter (for (id edge) in-hashtable (edges graph))
+      (gen-graph-dot-data edge s))
+    (format s "}~%")))
 
 (defmethod gen-graph-dot-data ((node graph-node) s)
   (format s "~s [shape=~a, fixedsize=true, width=~a, height=~a"
