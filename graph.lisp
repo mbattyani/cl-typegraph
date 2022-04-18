@@ -79,6 +79,11 @@
 (defun add-node (graph node)
   (setf (gethash (id node) (nodes graph)) node))
 
+(defun get-node (graph id)
+  (etypecase id
+    (string (gethash id (nodes graph)))
+    (symbol (gethash (symbol-name id) (nodes graph)))))
+
 (defun add-edge (graph edge)
   (setf (gethash (cons (head edge)(tail edge)) (edges graph)) edge))
 
@@ -150,13 +155,13 @@ edge [fontname=~a,fontsize=~a];
 	(dy graph)(* (third values) (scale graph) 72.0)))
 
 (defun process-graph-node-line (graph values)
-  (let ((node (gethash (pop values) (nodes graph))))
+  (let ((node (get-node graph (pop values))))
     (setf (x node) (* (pop values) 72.0)
 	  (y node) (* (pop values) 72.0))))
 
 (defun process-graph-edge-line (graph values)
-  (let* ((head (gethash (pop values) (nodes graph)))
-	 (tail (gethash (pop values) (nodes graph)))
+  (let* ((head (get-node graph (pop values)))
+	 (tail (get-node graph (pop values)))
 	 (edge (gethash (cons head tail) (edges graph)))
 	 (nb-points (pop values)))
     (setf (points edge) (iter (repeat nb-points)
