@@ -14,8 +14,8 @@
 (defparameter *edge-label-font-size* 9)
 (defparameter *node-label-font* (pdf:get-font "helvetica"))
 (defparameter *node-label-font-size* 12)
-(defparameter *node-horizontal-padding* 4)
-(defparameter *node-vertical-padding* 2)
+(defparameter *box-padding* '(4 2 4 2))
+
 
 (defvar *graph-id-counter* 0)
 
@@ -33,6 +33,7 @@
    (border-color :accessor border-color :initarg :border-color :initform '(0.0 0.0 0.0))
    (border-width :accessor border-width :initarg :border-width :initform 1)
    (shape :accessor shape :initarg :shape :initform :box)
+   (padding :accessor padding :initarg :padding :initform *box-padding*)
    (x :accessor x :initform 0)
    (y :accessor y :initform 0)
    (dx :accessor dx :initarg :dx :initform nil)
@@ -95,18 +96,21 @@
   (push (cons constraint nodes) (rank-constraints graph)))
 
 (defmethod adjust-graph-node-size ((node graph-node) data fixed-width fixed-height)
-  (unless fixed-width
-    (setf (dx node) (+ (pdf::text-width (format nil "~a" data) *node-label-font* *node-label-font-size*) (* 2 *node-horizontal-padding*))))
-  (unless fixed-height
-    (setf (dy node) (+ *node-label-font-size* (* 2 *node-vertical-padding*)))))
+  (tt::with-quad (l-p t-p r-p b-p) (padding node)
+    (unless fixed-width
+      (setf (dx node) (+ (pdf::text-width (format nil "~a" data) *node-label-font* *node-label-font-size*)
+			 l-p r-p)))
+    (unless fixed-height
+      (setf (dy node) (+ *node-label-font-size* t-p b-p)))))
 
 (defmethod adjust-graph-node-size ((node graph-node) (box box) fixed-width fixed-height)
-  (if fixed-width
-      (setf (dx node) (or (dx node) (+  (dx box) (* 2 *node-horizontal-padding*))))
-      (setf (dx node) (+ (compute-boxes-natural-size (boxes box) #'dx) (* 2 *node-horizontal-padding*))))
-  (if fixed-height
-      (setf (dy node) (or (dy node) (+ (dy box) (* 2 *node-vertical-padding*))))
-      (setf (dy node) (+ (compute-boxes-natural-size (boxes box) #'dy) (* 2 *node-vertical-padding*)))))
+  (tt::with-quad (l-p t-p r-p b-p) (padding node)
+    (if fixed-width
+	(setf (dx node) (or (dx node) (+  (dx box) l-p r-p)))
+	(setf (dx node) (+ (compute-boxes-natural-size (boxes box) #'dx) l-p r-p)))
+    (if fixed-height
+	(setf (dy node) (or (dy node) (+ (dy box) t-p b-p)))
+	(setf (dy node) (+ (compute-boxes-natural-size (boxes box) #'dy) t-p b-p)))))
 
 (defun gen-dot-attributes (s attributes &optional comma)
   (loop for (attribute value) in attributes do
@@ -211,7 +215,7 @@ edge [fontname=~a,fontsize=~a];
     (when (landscape-layout graph)
       (rotatef dx dy))
     (add-box (apply 'make-instance 'user-drawn-box
-		    :stroke-fn #'(lambda(box x y)
+		    :stroke-fn #'(lambda (box x y)
 				   (if (landscape-layout graph)
 				       (pdf:with-saved-state
 					   (pdf:translate x (- y dy))
@@ -254,7 +258,8 @@ edge [fontname=~a,fontsize=~a];
 			    *node-label-font* *node-label-font-size*)))
 
 (defmethod stroke-node-content ((node graph-node) (box box))
-  (stroke box (+ (x node) *node-horizontal-padding*) (- (y node) *node-vertical-padding*)))
+  (tt::with-quad (l-p t-p) (padding node)
+    (stroke box (+ (x node) l-p) (- (y node) t-p))))
 
 
 (defmethod stroke-edge ((edge graph-edge) data)
