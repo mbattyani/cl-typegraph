@@ -14,6 +14,8 @@
 (defparameter *edge-label-font-size* 9)
 (defparameter *node-label-font* (pdf:get-font "helvetica"))
 (defparameter *node-label-font-size* 12)
+(defparameter *node-horizontal-padding* 4)
+(defparameter *node-vertical-padding* 2)
 
 (defvar *graph-id-counter* 0)
 
@@ -33,8 +35,8 @@
    (shape :accessor shape :initarg :shape :initform :box)
    (x :accessor x :initform 0)
    (y :accessor y :initform 0)
-   (dx :accessor dx :initarg :dx :initform 60)
-   (dy :accessor dy :initarg :dy :initform 15)))
+   (dx :accessor dx :initarg :dx :initform nil)
+   (dy :accessor dy :initarg :dy :initform nil)))
 
 (defclass graph-edge ()
   ((id :accessor id :initform (make-graph-node-id))
@@ -68,13 +70,13 @@
    (dx :accessor dx)
    (dy :accessor dy)))
 
-(defmethod initialize-instance :after ((node graph-node) &rest args
+(defmethod initialize-instance :after ((node graph-node) 
 				       &key fixed-height fixed-width graph &allow-other-keys)
-  (unless (and fixed-width fixed-height)
-    (adjust-graph-node-size node (data node) fixed-width fixed-height))
+  (adjust-graph-node-size node (data node) fixed-width fixed-height)
   (when graph (add-node graph node)))
 
-(defmethod initialize-instance :after ((edge graph-edge) &rest args &key graph &allow-other-keys)
+(defmethod initialize-instance :after ((edge graph-edge)
+				       &key graph  &allow-other-keys)
   (when graph (add-edge graph edge)))
 
 (defun add-node (graph node)
@@ -93,13 +95,17 @@
 
 (defmethod adjust-graph-node-size ((node graph-node) data fixed-width fixed-height)
   (unless fixed-width
-    (setf (dx node) (+ (pdf::text-width (format nil "~a" data) *node-label-font* *node-label-font-size*) 4)))
+    (setf (dx node) (+ (pdf::text-width (format nil "~a" data) *node-label-font* *node-label-font-size*) (* 2 *node-horizontal-padding*))))
   (unless fixed-height
-    (setf (dy node) (+ *node-label-font-size* 4))))
+    (setf (dy node) (+ *node-label-font-size* (* 2 *node-vertical-padding*)))))
 
 (defmethod adjust-graph-node-size ((node graph-node) (box box) fixed-width fixed-height)
-  (unless fixed-height
-    (setf (dy node) (+ (compute-boxes-natural-size (boxes box) #'dy) 4))))
+  (if fixed-width
+      (setf (dx node) (or (dx node) (+  (dx box) (* 2 *node-horizontal-padding*))))
+      (setf (dx node) (+ (compute-boxes-natural-size (boxes box) #'dx) (* 2 *node-horizontal-padding*))))
+  (if fixed-height
+      (setf (dy node) (or (dy node) (+ (dy box) (* 2 *node-vertical-padding*))))
+      (setf (dy node) (+ (compute-boxes-natural-size (boxes box) #'dy) (* 2 *node-vertical-padding*)))))
 
 (defun gen-dot-attributes (s attributes &optional comma)
   (loop for (attribute value) in attributes do
@@ -158,8 +164,8 @@ edge [fontname=~a,fontsize=~a];
 
 (defun process-graph-node-line (graph values)
   (let ((node (get-node graph (pop values))))
-    (setf (x node) (* (pop values) 72.0)
-	  (y node) (* (pop values) 72.0))))
+    (setf (x node) (- (* (pop values) 72.0) (* (dx node) 0.5))
+	  (y node) (+ (* (pop values) 72.0) (* (dy node) 0.5)))))
 
 (defun process-graph-edge-line (graph values)
   (let* ((head (get-node graph (pop values)))
@@ -235,19 +241,19 @@ edge [fontname=~a,fontsize=~a];
       (when (border-width node)
 	(pdf:set-color-stroke (border-color node))
 	(pdf:set-line-width (border-width node))
-	(pdf:basic-rect (- (x node)(* (dx node) 0.5))(+ (y node)(* (dy node) 0.5))(dx node)(- (dy node)))
+	(pdf:basic-rect (x node) (y node)(dx node)(- (dy node)))
 	(pdf:fill-and-stroke)))
   (stroke-node-content node data))
 
 (defmethod stroke-node-content ((node graph-node) data)
   (when data
     (pdf:set-color-fill '(0.0 0.0 0.0))
-    (pdf:draw-centered-text (x node)(- (y node) (* 0.3 *node-label-font-size*))
+    (pdf:draw-centered-text (+ (x node) (* (dx node) 0.5)) (- (y node) (* (dy node) 0.5) (* 0.3 *node-label-font-size*))
 			    (format nil "~a" data)
 			    *node-label-font* *node-label-font-size*)))
 
 (defmethod stroke-node-content ((node graph-node) (box box))
-  (stroke box (- (x node)(* (dx node) 0.5)) (+ (y node)(* (dy node) 0.5))))
+  (stroke box (+ (x node) *node-horizontal-padding*) (- (y node) *node-vertical-padding*)))
 
 (defmethod stroke-edge ((edge graph-edge) data)
   (pdf:with-saved-state
