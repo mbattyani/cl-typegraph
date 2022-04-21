@@ -37,7 +37,8 @@
    (dy :accessor dy :initarg :dy :initform 15)))
 
 (defclass graph-edge ()
-  ((label :accessor label :initarg :label :initform nil)
+  ((id :accessor id :initform (make-graph-node-id))
+   (label :accessor label :initarg :label :initform nil)
    (head :accessor head :initarg :head)
    (tail :accessor tail :initarg :tail)
    (direction :accessor direction :initarg :direction :initform :forward)
@@ -85,7 +86,7 @@
     (symbol (gethash (symbol-name id) (nodes graph)))))
 
 (defun add-edge (graph edge)
-  (setf (gethash (cons (head edge)(tail edge)) (edges graph)) edge))
+  (setf (gethash (id edge) (edges graph)) edge))
 
 (defun add-rank-constraint (graph constraint nodes)
   (push (cons constraint nodes) (rank-constraints graph)))
@@ -135,9 +136,10 @@ edge [fontname=~a,fontsize=~a];
   (format s "];~%"))
 
 (defmethod gen-graph-dot-data ((edge graph-edge) s)
-  (format s "~s -> ~s [label=\"~a\", arrowhead=none"
+  (format s "~s -> ~s [label=\"~a\", arrowhead=none, color=\"~a\""
 	  (id (head edge)) (id (tail edge))
-	  (if (label edge) (label edge) ""))
+	  (if (label edge) (label edge) "")
+	  (id edge))
   (gen-dot-attributes s (dot-attributes edge) t)
   (format s "];~%"))
 
