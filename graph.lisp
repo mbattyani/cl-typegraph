@@ -248,12 +248,6 @@ edge [fontname=~a,fontsize=~a];
 (defmethod stroke-node-content ((node graph-node) (box box))
   (stroke box (- (x node)(* (dx node) 0.5)) (+ (y node)(* (dy node) 0.5))))
 
-(defun reverse-path (path)
-  (loop
-    :with result = (list)
-    :for (x y) :on path :by #'cddr
-    :do (push y result) (push x result)
-    :finally (return result)))
 
 (defmethod stroke-edge ((edge graph-edge) data)
   (pdf:with-saved-state
