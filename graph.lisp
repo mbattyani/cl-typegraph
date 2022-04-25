@@ -25,19 +25,23 @@
 (defun make-graph-file-id ()
   (format nil "F~d" (incf *graph-id-counter*)))
 
-(defclass graph-node ()
+(defclass graph-node-decoration-box ()
+  ((background-color :accessor background-color :initarg :background-color :initform '(1.0 1.0 1.0))
+   (border-color :accessor border-color :initarg :border-color :initform '(0.0 0.0 0.0))
+   (border-width :accessor border-width :initarg :border-width :initform 1)
+   (size-adjust :accessor size-adjust :initarg :size-adjust :initform 0)))
+
+(defparameter +box+ (make-instance 'graph-node-decoration-box))
+
+(defclass graph-node (box)
   ((id :accessor id :initform (make-graph-node-id))
    (data :accessor data :initarg :data :initform nil)
    (dot-attributes :accessor dot-attributes :initarg :dot-attributes :initform nil)
-   (background-color :accessor background-color :initarg :background-color :initform '(1.0 1.0 1.0))
-   (border-color :accessor border-color :initarg :border-color :initform '(0.0 0.0 0.0))
-   (border-width :accessor border-width :initarg :border-width :initform 1)
-   (shape :accessor shape :initarg :shape :initform :box)
+   (decoration :accessor decoration :initarg :decoration :initform +box+)
    (padding :accessor padding :initarg :padding :initform *box-padding*)
    (x :accessor x :initform 0)
-   (y :accessor y :initform 0)
-   (dx :accessor dx :initarg :dx :initform nil)
-   (dy :accessor dy :initarg :dy :initform nil)))
+   (y :accessor y :initform 0))
+  (:default-initargs :dx nil :dy nil))
 
 (defclass graph-edge ()
   ((id :accessor id :initform (make-graph-node-id))
@@ -95,22 +99,28 @@
 (defun add-rank-constraint (graph constraint nodes)
   (push (cons constraint nodes) (rank-constraints graph)))
 
+
+(defmethod size-adjust (thing)
+  0)
+
 (defmethod adjust-graph-node-size ((node graph-node) data fixed-width fixed-height)
-  (tt::with-quad (l-p t-p r-p b-p) (padding node)
-    (unless fixed-width
-      (setf (dx node) (+ (pdf::text-width (format nil "~a" data) *node-label-font* *node-label-font-size*)
-			 l-p r-p)))
-    (unless fixed-height
-      (setf (dy node) (+ *node-label-font-size* t-p b-p)))))
+  (tt::with-quad (l-a t-a r-a b-a) (size-adjust (decoration node))
+    (tt::with-quad (l-p t-p r-p b-p) (padding node)
+      (unless fixed-width
+	(setf (dx node) (+ (pdf::text-width (format nil "~a" data) *node-label-font* *node-label-font-size*)
+			   l-a l-p r-a r-p)))
+      (unless fixed-height
+	(setf (dy node) (+ *node-label-font-size* t-a t-p b-a b-p))))))
 
 (defmethod adjust-graph-node-size ((node graph-node) (box box) fixed-width fixed-height)
-  (tt::with-quad (l-p t-p r-p b-p) (padding node)
-    (if fixed-width
-	(setf (dx node) (or (dx node) (+  (dx box) l-p r-p)))
-	(setf (dx node) (+ (compute-boxes-natural-size (boxes box) #'dx) l-p r-p)))
-    (if fixed-height
-	(setf (dy node) (or (dy node) (+ (dy box) t-p b-p)))
-	(setf (dy node) (+ (compute-boxes-natural-size (boxes box) #'dy) t-p b-p)))))
+  (tt::with-quad (l-a t-a r-a b-a) (size-adjust (decoration node))
+    (tt::with-quad (l-p t-p r-p b-p) (padding node)
+      (if fixed-width
+	  (setf (dx node) (or (dx node) (+  (dx box) l-a l-p r-a r-p)))
+	  (setf (dx node) (+ (compute-boxes-natural-size (boxes box) #'dx) l-a l-p r-a r-p)))
+      (if fixed-height
+	  (setf (dy node) (or (dy node) (+ (dy box) t-a t-p b-a b-p)))
+	  (setf (dy node) (+ (compute-boxes-natural-size (boxes box) #'dy) t-a t-p b-a b-p))))))
 
 (defun gen-dot-attributes (s attributes &optional comma)
   (loop for (attribute value) in attributes do
@@ -141,8 +151,8 @@ edge [fontname=~a,fontsize=~a];
     (format s "}~%")))
 
 (defmethod gen-graph-dot-data ((node graph-node) s)
-  (format s "~s [shape=~a, fixedsize=true, width=~a, height=~a"
-	  (id node)(shape node)(/ (dx node) 72.0)(/ (dy node) 72.0))
+  (format s "~s [fixedsize=true, width=~a, height=~a"
+	  (id node)(/ (dx node) 72.0)(/ (dy node) 72.0))
   (gen-dot-attributes s (dot-attributes node) t)
   (format s "];~%"))
 
@@ -241,19 +251,27 @@ edge [fontname=~a,fontsize=~a];
 	    (stroke-node node (data node)))))
 
 (defmethod stroke-node ((node graph-node) data)
-  (pdf:with-saved-state
-      (pdf:set-color-fill (background-color node))
-      (when (border-width node)
-	(pdf:set-color-stroke (border-color node))
-	(pdf:set-line-width (border-width node))
-	(pdf:basic-rect (x node) (y node)(dx node)(- (dy node)))
-	(pdf:fill-and-stroke)))
+  (stroke-node-decoration node (decoration node))
   (stroke-node-content node data))
+
+
+(defmethod stroke-node-decoration ((node graph-node) decoration))
+
+(defmethod stroke-node-decoration ((node graph-node) (decoration graph-node-decoration-box))
+  (pdf:with-saved-state
+      (pdf:set-color-fill (background-color decoration))
+      (when (border-width decoration)
+	(pdf:set-color-stroke (border-color decoration))
+	(pdf:set-line-width (border-width decoration))
+	(pdf:basic-rect (x node) (y node)(dx node)(- (dy node)))
+	(pdf:fill-and-stroke))))
+
 
 (defmethod stroke-node-content ((node graph-node) data)
   (when data
     (pdf:set-color-fill '(0.0 0.0 0.0))
-    (pdf:draw-centered-text (+ (x node) (* (dx node) 0.5)) (- (y node) (* (dy node) 0.5) (* 0.3 *node-label-font-size*))
+    (pdf:draw-centered-text (+ (x node) (* (dx node) 0.5))
+			    (- (y node) (* (dy node) 0.5) (* 0.3 *node-label-font-size*))
 			    (format nil "~a" data)
 			    *node-label-font* *node-label-font-size*)))
 
