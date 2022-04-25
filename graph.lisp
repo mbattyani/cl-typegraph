@@ -100,6 +100,9 @@
   (push (cons constraint nodes) (rank-constraints graph)))
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Size and location functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmethod size-adjust (thing)
   0)
 
@@ -122,6 +125,21 @@
 	  (setf (dy node) (or (dy node) (+ (dy box) t-a t-p b-a b-p)))
 	  (setf (dy node) (+ (compute-boxes-natural-size (boxes box) #'dy) t-a t-p b-a b-p))))))
 
+(defmethod content-x ((node graph-node))
+  (with-quad (l-d) (size-adjust (decoration node))
+    (with-quad (l-p) (padding node)
+      (+ (x node) l-d l-p ))))
+
+(defmethod content-y ((node graph-node))
+  (with-quad (l-d t-d) (size-adjust (decoration node))
+    (with-quad (l-p t-p) (padding node)
+      (- (y node) t-d t-p ))))
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Writing dot files
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun gen-dot-attributes (s attributes &optional comma)
   (loop for (attribute value) in attributes do
 	(if comma
@@ -276,8 +294,7 @@ edge [fontname=~a,fontsize=~a];
 			    *node-label-font* *node-label-font-size*)))
 
 (defmethod stroke-node-content ((node graph-node) (box box))
-  (tt::with-quad (l-p t-p) (padding node)
-    (stroke box (+ (x node) l-p) (- (y node) t-p))))
+  (stroke box (content-x node) (content-y node)))
 
 
 (defmethod stroke-edge ((edge graph-edge) data)
