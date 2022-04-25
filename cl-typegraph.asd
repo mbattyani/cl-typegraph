@@ -16,6 +16,7 @@
     :long-description "The cl-typegraph package is a stand-alone Common Lisp graph typesetting system."
     :perform (load-op :after (op cl-typegraph)
 		      (pushnew :cl-typegraph cl:*features*))
-    :components ((:file "graph"))
+    :components ((:file "path-functions")
+		 (:file "graph"))
     :depends-on (:cl-typesetting))
 
